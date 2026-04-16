@@ -278,10 +278,35 @@ def main(ticker: str, top_n: int = 4) -> dict:
             "fallback": True,
         }
 
+    # v2.2 · 行业别名映射（XueQiu/EastMoney 返回的名称可能不同于 INDUSTRY_PEERS 的 key）
+    _INDUSTRY_ALIASES = {
+        "港口航运": "港口", "港口服务": "港口", "港口运输": "港口",
+        "航空运输": "交通运输", "公路铁路运输": "交通运输", "铁路运输": "交通运输",
+        "海运": "航运", "水上运输": "航运", "远洋运输": "航运",
+        "快递物流": "物流", "仓储物流": "物流",
+        "火电": "电力", "水电": "电力", "核电": "电力", "新能源发电": "电力",
+        "种植业": "农业", "养殖业": "农业", "饲料": "农业", "畜禽养殖": "农业",
+        "游戏": "传媒", "影视": "传媒", "广告": "传媒",
+        "医疗服务": "医疗器械", "医疗设备": "医疗器械",
+        "白色家电": "家电", "小家电": "家电", "厨卫电器": "家电",
+        "集成电路": "半导体", "芯片": "半导体", "芯片设计": "半导体",
+        "锂电池": "电池", "动力电池": "电池", "储能": "电池",
+        "光伏设备": "电力设备", "风电设备": "电力设备",
+        "白酒": "白酒", "啤酒": "食品饮料", "饮料": "食品饮料", "乳制品": "食品饮料",
+        "黄金": "有色金属", "铜": "有色金属", "铝": "有色金属", "锂": "有色金属",
+        "航空发动机": "军工", "航天": "军工", "船舶制造": "军工",
+    }
+
+    # 1. 精确匹配
     peers = INDUSTRY_PEERS.get(industry, [])
+    # 2. 别名映射
+    if not peers:
+        alias = _INDUSTRY_ALIASES.get(industry)
+        if alias:
+            peers = INDUSTRY_PEERS.get(alias, [])
+    # 3. 子串模糊匹配
     if not peers:
         for key, val in INDUSTRY_PEERS.items():
-            # Require at least 2-char overlap and meaningful match
             if len(industry) >= 2 and (key in industry or industry in key or industry[:2] in key):
                 peers = val
                 break

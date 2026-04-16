@@ -306,18 +306,28 @@ def score_dimensions(raw: dict) -> dict:
     out["11_governance"] = {"score": min(10, score_11), "weight": 4,
                              "label": f"质押记录 {len(pledge) if isinstance(pledge, list) else '—'} · 内部交易 {'有' if has_insider else '无'}"}
 
-    # 12 · 资金面
+    # 12 · 资金面 (v2.2: 主力资金替代北向，北向已关停)
     cap = _get("12_capital_flow")
-    north = cap.get("northbound_20d", "—")
+    main_flow = cap.get("main_fund_flow_20d") or []
+    main_5d_net = 0
+    if main_flow:
+        for rec in main_flow[:5]:
+            v = rec.get("主力净流入-净额", 0) if isinstance(rec, dict) else 0
+            try:
+                main_5d_net += float(v)
+            except (ValueError, TypeError):
+                pass
+    main_5d_label = f"{main_5d_net / 1e8:+.1f}亿" if main_5d_net else "—"
     unlock = cap.get("unlock_schedule") or []
     score_12 = 5
-    if "+" in str(north): score_12 += 2
+    if main_5d_net > 0: score_12 += 2
+    elif main_5d_net < 0: score_12 -= 1
     if len(unlock) == 0: score_12 += 1
-    score_12 = min(10, score_12)
+    score_12 = max(1, min(10, score_12))
     out["12_capital_flow"] = {"score": score_12, "weight": 4,
-                               "label": f"北向 20日 {north} · 12 个月解禁 {len(unlock)} 次",
-                               "reasons_pass": [f"北向净流入 {north}"] if "+" in str(north) else [],
-                               "reasons_fail": []}
+                               "label": f"主力 5日 {main_5d_label} · 12 个月解禁 {len(unlock)} 次",
+                               "reasons_pass": [f"主力资金 5 日净流入 {main_5d_label}"] if main_5d_net > 0 else [],
+                               "reasons_fail": [f"主力资金 5 日净流出 {main_5d_label}"] if main_5d_net < 0 else []}
 
     # 13 · 政策
     out["13_policy"] = {"score": 6, "weight": 3, "label": "政策环境中性"}

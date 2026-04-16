@@ -386,6 +386,23 @@ _STOCK_INDUSTRY_MAP: dict[str, str] = {
     "000333": "家电", "000651": "家电", "600690": "家电",
     # 食品饮料
     "600887": "食品饮料", "603288": "食品饮料",
+    # 港口
+    "000582": "港口", "601018": "港口", "600017": "港口", "600018": "港口",
+    "000905": "港口", "601298": "港口", "000507": "港口",
+    # 交通运输
+    "601006": "交通运输", "600009": "交通运输", "601111": "交通运输",
+    # 航运
+    "601866": "航运", "601872": "航运", "600026": "航运", "601880": "航运",
+    # 建筑
+    "601668": "建筑装饰", "601186": "建筑装饰", "002051": "建筑装饰",
+    # 电力
+    "600900": "电力", "601985": "电力", "600886": "电力",
+    # 煤炭
+    "601088": "煤炭", "600188": "煤炭", "601898": "煤炭",
+    # 军工
+    "600893": "军工", "000768": "军工", "601989": "军工",
+    # 汽车
+    "600104": "汽车", "601238": "汽车", "000625": "汽车",
 }
 
 
@@ -755,17 +772,50 @@ def _fetch_research_impl(ti: TickerInfo) -> list[dict]:
 # Top-level: resolve Chinese name → ticker (uses akshare a-share spot table)
 # ─────────────────────────────────────────────────────────────
 def resolve_chinese_name(name: str) -> TickerInfo | None:
-    if ak is None:
-        return None
+    """Resolve Chinese stock name to TickerInfo. Multi-fallback:
+    1. akshare A-share spot table (fast but often blocked)
+    2. akshare stock_info_a_code_name (lighter weight)
+    3. DuckDuckGo search as last resort
+    """
+    # Fallback 1: akshare spot table
+    if ak is not None:
+        try:
+            df = ak.stock_zh_a_spot_em()
+            row = df[df["名称"].str.contains(name, na=False)]
+            if not row.empty:
+                code = str(row.iloc[0]["代码"])
+                return parse_ticker(code)
+        except Exception:
+            pass
+
+    # Fallback 2: akshare code-name mapping (smaller, less likely to be blocked)
+    if ak is not None:
+        try:
+            df = ak.stock_info_a_code_name()
+            row = df[df["name"].str.contains(name, na=False)] if "name" in df.columns else df[df.iloc[:, 1].str.contains(name, na=False)]
+            if not row.empty:
+                code = str(row.iloc[0].iloc[0])  # first column = code
+                return parse_ticker(code)
+        except Exception:
+            pass
+
+    # Fallback 3: DuckDuckGo search
     try:
-        df = ak.stock_zh_a_spot_em()
-        row = df[df["名称"].str.contains(name, na=False)]
-        if row.empty:
-            return None
-        code = str(row.iloc[0]["代码"])
-        return parse_ticker(code)
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            query = f"{name} A股 股票代码"
+            results = list(ddgs.text(query, max_results=3))
+            import re
+            for r in results:
+                text = f"{r.get('title', '')} {r.get('body', '')}"
+                # Match 6-digit stock codes
+                codes = re.findall(r'\b([036]\d{5})\b', text)
+                if codes:
+                    return parse_ticker(codes[0])
     except Exception:
-        return None
+        pass
+
+    return None
 
 
 if __name__ == "__main__":

@@ -609,7 +609,7 @@ def build_morning_note(features: dict, raw_data: dict) -> dict:
     bullets = [
         f"【价格】¥{price:.2f} · PE {pe:.0f}x",
         f"【技术面】{stage} · 均线 {kline.get('ma_align', '—')}",
-        f"【资金面】龙虎榜 {lhb.get('lhb_count_30d', 0)} 次 · 北向 {dims.get('12_capital_flow', {}).get('data', {}).get('northbound_20d', '—')}",
+        f"【资金面】龙虎榜 {lhb.get('lhb_count_30d', 0)} 次 · 主力资金 {dims.get('12_capital_flow', {}).get('data', {}).get('main_5d', '—')}",
         f"【舆情】热度 {sentiment.get('thermometer_value', 0)} · {sentiment.get('sentiment_label', '—')}",
     ]
 
