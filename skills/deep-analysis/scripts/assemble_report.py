@@ -2283,6 +2283,8 @@ def assemble(ticker: str) -> Path:
         "{{CONSENSUS_PCT}}": f"{panel.get('panel_consensus', 0):.0f}",
         "{{BULL_TAG}}": _safe((bull.get("group") and GROUP_LABELS.get(bull.get("group"))) or bull.get("tagline"), ""),
         "{{BEAR_TAG}}": _safe((bear.get("group") and GROUP_LABELS.get(bear.get("group"))) or bear.get("tagline"), ""),
+        "{{BULL_SIGNAL_CN}}": {"bullish": "看多", "neutral": "中性", "bearish": "看空"}.get(divide.get("bull_signal", ""), "看多"),
+        "{{BEAR_SIGNAL_CN}}": {"bullish": "看多", "neutral": "中性", "bearish": "看空"}.get(divide.get("bear_signal", ""), "看空"),
         "{{TOTAL_COUNT}}": str(len(investors)),
         "{{MARKET_STATUS}}": market_status().get("label", ""),
         "{{MARKET_STATUS_CLASS}}": "open" if market_status().get("is_open") else "closed",

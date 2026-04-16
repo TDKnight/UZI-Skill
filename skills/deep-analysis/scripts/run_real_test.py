@@ -541,20 +541,65 @@ def generate_synthesis(raw: dict, dims_scored: dict, panel: dict) -> dict:
     else: verdict_label = "回避"
 
     # Pick bull and bear for great divide
+    # CRITICAL: must pick from ACTUALLY bullish/bearish investors, never misattribute
     investors = panel.get("investors", [])
-    bulls = sorted([i for i in investors if i["signal"] == "bullish"], key=lambda x: -x["confidence"])
-    bears = sorted([i for i in investors if i["signal"] == "bearish"], key=lambda x: -x["confidence"])
-    if not bears:
-        bears = sorted([i for i in investors if i["signal"] == "neutral"], key=lambda x: -x["confidence"])
-    bull = bulls[0] if bulls else investors[0]
-    bear = bears[0] if bears else investors[-1]
+    inv_by_score = sorted(investors, key=lambda x: -x.get("score", 0))
 
-    # Build debate rounds from comments (procedural)
-    rounds = []
-    for i in range(3):
-        bull_say = bull.get("comment", "") + ("" if i == 0 else "而且数据支持。")
-        bear_say = bear.get("comment", "") + ("" if i == 0 else "这不是接盘位。")
-        rounds.append({"round": i + 1, "bull_say": bull_say, "bear_say": bear_say})
+    # Bull = highest score among genuinely bullish, or highest score overall if no bullish
+    bulls = [i for i in investors if i["signal"] == "bullish"]
+    bears = [i for i in investors if i["signal"] == "bearish"]
+    neutrals = [i for i in investors if i["signal"] == "neutral"]
+
+    if bulls:
+        bull = sorted(bulls, key=lambda x: -x.get("score", 0))[0]
+    elif neutrals:
+        # No bullish → pick highest-scoring neutral as "relative bull"
+        bull = sorted(neutrals, key=lambda x: -x.get("score", 0))[0]
+    else:
+        # Everyone is bearish → pick least bearish
+        bull = inv_by_score[0]
+
+    if bears:
+        bear = sorted(bears, key=lambda x: x.get("score", 100))[0]
+    elif neutrals:
+        # No bearish → pick lowest-scoring neutral as "relative bear"
+        bear = sorted(neutrals, key=lambda x: x.get("score", 100))[0]
+    else:
+        # Everyone is bullish → pick least bullish
+        bear = inv_by_score[-1]
+
+    # Safety: bull and bear must be different investors
+    if bull["investor_id"] == bear["investor_id"] and len(investors) > 1:
+        bear = inv_by_score[-1] if bull == inv_by_score[0] else inv_by_score[0]
+
+    # Build debate rounds — use actual headline + reasoning from evaluator
+    bull_headline = bull.get("headline", bull.get("comment", ""))
+    bear_headline = bear.get("headline", bear.get("comment", ""))
+    bull_reasoning = bull.get("reasoning", "")
+    bear_reasoning = bear.get("reasoning", "")
+
+    bull_pass_rules = bull.get("pass", [])
+    bull_fail_rules = bull.get("fail", [])
+    bear_pass_rules = bear.get("pass", [])
+    bear_fail_rules = bear.get("fail", [])
+
+    rounds = [
+        {
+            "round": 1,
+            "bull_say": bull_headline,
+            "bear_say": bear_headline,
+        },
+        {
+            "round": 2,
+            "bull_say": " · ".join(r.get("msg", r.get("name", "")) for r in bull_pass_rules[:3]) or "数据支持我的判断。",
+            "bear_say": " · ".join(r.get("msg", r.get("name", "")) for r in bear_fail_rules[:3]) or "风险点太多。",
+        },
+        {
+            "round": 3,
+            "bull_say": f"综合看，{bull.get('score', 0)} 分，我的立场不变。",
+            "bear_say": f"综合看，{bear.get('score', 0)} 分，风险大于收益。",
+        },
+    ]
 
     kline = (raw.get("dimensions", {}).get("2_kline") or {}).get("data") or {}
     val = (raw.get("dimensions", {}).get("10_valuation") or {}).get("data") or {}
@@ -663,8 +708,10 @@ def generate_synthesis(raw: dict, dims_scored: dict, panel: dict) -> dict:
         "great_divide": {
             "bull_avatar": bull["investor_id"],
             "bear_avatar": bear["investor_id"],
-            "bull_score": bull["confidence"],
-            "bear_score": bear["confidence"],
+            "bull_score": bull["score"],
+            "bear_score": bear["score"],
+            "bull_signal": bull["signal"],
+            "bear_signal": bear["signal"],
             "punchline": punchline,
         },
         "risks": risks,

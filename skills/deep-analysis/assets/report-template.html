@@ -2207,7 +2207,7 @@ footer strong { color: var(--text-dim); }
   <div class="divide-section">
     <div class="divide-header">
       <div class="tag">THE GREAT DIVIDE</div>
-      <h2>最看多的人 VS 最看空的人</h2>
+      <h2>最看多 VS 最看空</h2>
       <div class="round-info">⚡ <strong>3 ROUNDS</strong> · 隔空辩论 · 最后由 PUNCHLINE 一锤定音</div>
     </div>
 
@@ -2217,9 +2217,9 @@ footer strong { color: var(--text-dim); }
         <div class="hp-bar"><div class="hp-fill" data-hp="{{BULL_SCORE}}"></div></div>
         <div class="avatar-box"><img src="avatars/{{BULL_ID}}.svg" alt=""></div>
         <div class="fighter-name">{{BULL_NAME}}</div>
-        <div class="fighter-tag">{{BULL_TAG}} · 看多</div>
+        <div class="fighter-tag">{{BULL_TAG}} · {{BULL_SIGNAL_CN}}</div>
         <div class="confidence">{{BULL_SCORE}}</div>
-        <div class="conf-label">CONFIDENCE</div>
+        <div class="conf-label">SCORE</div>
       </div>
 
       <div class="vs-bolt">
@@ -2231,9 +2231,9 @@ footer strong { color: var(--text-dim); }
         <div class="hp-bar"><div class="hp-fill" data-hp="{{BEAR_SCORE}}"></div></div>
         <div class="avatar-box"><img src="avatars/{{BEAR_ID}}.svg" alt=""></div>
         <div class="fighter-name">{{BEAR_NAME}}</div>
-        <div class="fighter-tag">{{BEAR_TAG}} · 看空</div>
+        <div class="fighter-tag">{{BEAR_TAG}} · {{BEAR_SIGNAL_CN}}</div>
         <div class="confidence">{{BEAR_SCORE}}</div>
-        <div class="conf-label">CONFIDENCE</div>
+        <div class="conf-label">SCORE</div>
       </div>
     </div>
 
