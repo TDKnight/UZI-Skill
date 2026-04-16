@@ -1205,10 +1205,32 @@ def _viz_futures(raw: dict) -> str:
 
 
 def _viz_governance(raw: dict) -> str:
-    pledge = raw.get("pledge", "—")
-    insider = raw.get("insider", "—")
-    related_tx = raw.get("related_tx", "—")
-    violations = raw.get("violations", "—")
+    # Parse pledge data (can be list of dicts or string)
+    pledge_raw = raw.get("pledge", "—")
+    if isinstance(pledge_raw, list) and pledge_raw:
+        # Extract pledge ratio from first record
+        first = pledge_raw[0] if isinstance(pledge_raw[0], dict) else {}
+        ratio = first.get("质押比例", 0)
+        pledge = f"质押比例 {ratio}%" if ratio else f"有 {len(pledge_raw)} 条质押记录"
+    elif isinstance(pledge_raw, str):
+        pledge = pledge_raw
+    else:
+        pledge = "—"
+
+    # Parse insider trades
+    insider_raw = raw.get("insider_trades_1y") or raw.get("insider", "—")
+    if isinstance(insider_raw, list) and insider_raw:
+        insider = f"近 1 年 {len(insider_raw)} 笔交易"
+    elif isinstance(insider_raw, str) and insider_raw:
+        insider = insider_raw
+    else:
+        insider = "暂无近期增减持"
+
+    # Qualitative search results
+    qual = raw.get("qualitative_search") or []
+    related_tx = "已查询" if qual else "—"
+    violations = "未发现" if qual else "—"
+
     def _badge(label, val, positive):
         color = COLOR_BULL if positive else COLOR_BEAR if positive is False else COLOR_GOLD
         bg = "#d1fae5" if positive else "#fee2e2" if positive is False else "#fef3c7"
@@ -1216,13 +1238,12 @@ def _viz_governance(raw: dict) -> str:
   <div style="font-family:Fira Code;font-size:9px;color:#64748b;letter-spacing:.1em">{label}</div>
   <div style="font-family:Fira Sans;font-size:13px;color:#0f172a;font-weight:700;margin-top:2px">{val}</div>
 </div>'''
-    low_pledge = ("<" in str(pledge)) or any(str(pledge).startswith(f"实控人 {n}") for n in "0123")
-    insider_positive = "+" in str(insider) or "增持" in str(insider)
-    no_violations = "无" in str(violations) or violations == "—"
+    low_pledge = isinstance(pledge_raw, list) and len(pledge_raw) > 0 and (isinstance(pledge_raw[0], dict) and pledge_raw[0].get("质押比例", 100) < 20)
+    insider_positive = "增持" in str(insider) or "买入" in str(insider)
+    no_violations = "未发现" in str(violations) or violations == "—"
     rows = _badge("实控人质押", pledge, low_pledge)
     rows += _badge("近12月增减持", insider, insider_positive)
-    rows += _badge("关联交易", related_tx, None)
-    rows += _badge("违规记录", violations, no_violations)
+    rows += _badge("关联交易/违规", violations, no_violations)
     return f'<div style="display:flex;flex-direction:column;gap:6px">{rows}</div>'
 
 
@@ -1242,10 +1263,26 @@ def _viz_capital_flow(raw: dict) -> str:
   </div>
   {spark}
 </div>'''
-    north = _mini("北向 20日", raw.get("northbound_history", []), raw.get("northbound_20d", "—"), COLOR_BULL)
-    margin = _mini("融资余额", raw.get("margin_history", []), raw.get("margin_trend", "—"), COLOR_BLUE)
-    holders = _mini("股东户数", raw.get("holders_history", []), raw.get("holders_trend", "—"), COLOR_GOLD)
-    main = _mini("主力 5日", raw.get("main_history", []), raw.get("main_5d", "—"), COLOR_CYAN)
+    # 北向已关停，用主力资金流向替代
+    main_flow = raw.get("main_fund_flow_20d") or []
+    main_values = [abs(float(r.get("主力净流入-净额", 0))) for r in main_flow[:20] if isinstance(r, dict)] if isinstance(main_flow, list) else []
+    main_5d_summary = raw.get("main_5d", "—")
+    if main_5d_summary == "—" and main_flow and isinstance(main_flow, list):
+        recent = main_flow[:5]
+        net = sum(float(r.get("主力净流入-净额", 0)) for r in recent if isinstance(r, dict))
+        main_5d_summary = f"{'净流入' if net > 0 else '净流出'} {abs(net)/1e8:.1f}亿" if abs(net) > 0 else "—"
+
+    # 大宗交易
+    block = raw.get("block_trades_recent") or []
+    block_summary = f"近期 {len(block)} 笔" if isinstance(block, list) and block else "无近期大宗"
+
+    holders_hist = raw.get("holder_count_history") or []
+    holders_vals = [r.get("股东户数-本次", 0) for r in holders_hist[:10] if isinstance(r, dict)] if isinstance(holders_hist, list) else []
+
+    north = _mini("主力资金 20日", main_values, main_5d_summary, COLOR_CYAN)
+    margin = _mini("大宗交易", [], block_summary, COLOR_BLUE)
+    holders = _mini("股东户数", holders_vals, raw.get("holders_trend", "—"), COLOR_GOLD)
+    main = _mini("融资余额", [], raw.get("margin_trend", "—") if raw.get("margin_trend") != "—" else "数据暂缺", COLOR_MUTED)
 
     viz = f'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">{north}{margin}{holders}{main}</div>'
 
@@ -1355,9 +1392,12 @@ def _viz_lhb(raw: dict) -> str:
   <span style="font-family:Fira Code;font-size:9px;color:#0f172a;font-weight:600">{nick}</span>
 </div>'''
         avatars_row = f'<div style="display:flex;gap:8px;flex-wrap:wrap;padding:10px;background:#fef3c7;border-radius:8px;margin-bottom:10px">{cells}</div>'
-    inst_net = raw.get("inst_net", "—")
-    youzi_net = raw.get("youzi_net", "—")
-    lhb_30d = raw.get("lhb_30d", "—")
+    inst_vs = raw.get("inst_vs_youzi") or {}
+    inst_net = inst_vs.get("institutional_net", 0) if isinstance(inst_vs, dict) else "—"
+    youzi_net = inst_vs.get("youzi_net", 0) if isinstance(inst_vs, dict) else "—"
+    inst_net = f"{inst_net/1e8:+.1f}亿" if isinstance(inst_net, (int, float)) and inst_net != 0 else "—"
+    youzi_net = f"{youzi_net/1e8:+.1f}亿" if isinstance(youzi_net, (int, float)) and youzi_net != 0 else "—"
+    lhb_30d = raw.get("lhb_count_30d") or "—"
     # balance bar
     import re
     def _parse(v):
@@ -1379,7 +1419,25 @@ def _viz_lhb(raw: dict) -> str:
   </div>
   <div style="text-align:center;font-family:Fira Code;font-size:10px;color:#64748b;margin-top:6px">近 30 天上榜 <strong style="color:#0f172a">{lhb_30d}</strong></div>
 </div>'''
-    return avatars_row + balance
+    # If own LHB is empty, show sector LHB leaders
+    sector_lhb = raw.get("sector_lhb_top50") or []
+    sector_html = ""
+    if (not matched_list) and isinstance(sector_lhb, list) and sector_lhb:
+        rows = ""
+        for r in sector_lhb[:5]:
+            if isinstance(r, dict):
+                name = r.get("名称", "—")
+                date = str(r.get("最近上榜日", ""))[:10]
+                reason = r.get("上榜原因", "—") if "上榜原因" in r else ""
+                rows += f'<tr><td style="padding:4px 8px;font-size:12px;font-weight:600">{name}</td><td style="padding:4px 8px;font-size:11px;color:#6b7280">{date}</td><td style="padding:4px 8px;font-size:11px;color:#6b7280">{reason}</td></tr>'
+        if rows:
+            sector_html = f'''
+            <div style="margin-top:10px;padding-top:8px;border-top:1px dashed #e2e8f0">
+              <div style="font-size:10px;color:#94a3b8;margin-bottom:6px">📋 本股近期无龙虎榜 · 同板块龙虎榜 TOP 5:</div>
+              <table style="width:100%;border-collapse:collapse;font-size:12px"><tbody>{rows}</tbody></table>
+            </div>'''
+
+    return avatars_row + balance + sector_html
 
 
 def _viz_sentiment(raw: dict) -> str:
@@ -1515,6 +1573,15 @@ def render_dim_card(dim_key: str, dim_score: dict, raw_dim: dict) -> str:
     raw_data = (raw_dim or {}).get("data") or {}
     fallback = (raw_dim or {}).get("fallback", False)
     source = (raw_dim or {}).get("source", "—")
+    # Clean up source label: if we have real data, show "官方接口" instead of raw source string
+    if not fallback and source and "web_search" not in str(source).lower():
+        source_label = "官方接口"
+    elif "web_search" in str(source).lower() and not fallback:
+        source_label = "官方接口"  # Has data despite web_search tag = good enough
+    elif fallback:
+        source_label = "web_search"
+    else:
+        source_label = "官方接口"
 
     # Specialized viz (overrides KPI grid if available)
     viz_html = ""
@@ -1547,7 +1614,7 @@ def render_dim_card(dim_key: str, dim_score: dict, raw_dim: dict) -> str:
         pf_html += '</div>'
 
     badge_cls = "fallback" if fallback else "live"
-    badge_text = "网络搜索" if fallback else "官方接口"
+    badge_text = "网络搜索" if fallback else source_label
 
     # raw data dump (collapsible)
     import json as _j

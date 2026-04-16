@@ -837,6 +837,20 @@ def main(ticker: str = "002273.SZ"):
     from inline_assets import main as inline_main
     standalone = inline_main(ti.full)
 
+    # Generate share card & war report PNGs (optional — requires playwright)
+    try:
+        from render_share_card import main as render_sc
+        render_sc(ti.full)
+        print(f"  ✓ 朋友圈分享卡 PNG")
+    except Exception as e:
+        print(f"  ⚠️ 分享卡跳过 (playwright 未安装?): {e}")
+    try:
+        from render_war_report import main as render_wr
+        render_wr(ti.full)
+        print(f"  ✓ 战报横图 PNG")
+    except Exception as e:
+        print(f"  ⚠️ 战报跳过: {e}")
+
     # Ensure standalone file is fully written
     standalone_path = Path(standalone).resolve()
     assert standalone_path.exists() and standalone_path.stat().st_size > 10000, \
