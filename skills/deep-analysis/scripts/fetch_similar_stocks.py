@@ -103,6 +103,67 @@ INDUSTRY_PEERS: dict[str, list[tuple[str, str]]] = {
         ("600887", "伊利股份"),
         ("603288", "海天味业"),
     ],
+    "建筑装饰": [
+        ("601668", "中国建筑"),
+        ("601186", "中国铁建"),
+        ("601390", "中国中铁"),
+        ("601800", "中国交建"),
+        ("002051", "中工国际"),
+    ],
+    "建筑材料": [
+        ("600585", "海螺水泥"),
+        ("000877", "天山股份"),
+        ("002271", "东方雨虹"),
+        ("003816", "中南建设"),
+    ],
+    "汽车": [
+        ("002594", "比亚迪"),
+        ("601238", "广汽集团"),
+        ("600104", "上汽集团"),
+        ("000625", "长安汽车"),
+        ("601127", "赛力斯"),
+    ],
+    "计算机": [
+        ("002230", "科大讯飞"),
+        ("000977", "浪潮信息"),
+        ("002415", "海康威视"),
+        ("688111", "金山办公"),
+    ],
+    "通信": [
+        ("000063", "中兴通讯"),
+        ("600050", "中国联通"),
+        ("601728", "中国电信"),
+    ],
+    "电力设备": [
+        ("601012", "隆基绿能"),
+        ("300274", "阳光电源"),
+        ("002459", "晶澳科技"),
+    ],
+    "煤炭": [
+        ("601088", "中国神华"),
+        ("600188", "兖矿能源"),
+        ("601898", "中煤能源"),
+    ],
+    "石油石化": [
+        ("600028", "中国石化"),
+        ("601857", "中国石油"),
+        ("600346", "恒力石化"),
+    ],
+    "有色金属": [
+        ("601899", "紫金矿业"),
+        ("603993", "洛阳钼业"),
+        ("002466", "天齐锂业"),
+    ],
+    "军工": [
+        ("600893", "航发动力"),
+        ("000768", "中航飞机"),
+        ("601989", "中国重工"),
+    ],
+    "量子": [
+        ("688027", "国盾量子"),
+        ("688599", "天箭科技"),
+        ("600770", "综艺股份"),
+    ],
 }
 
 
@@ -143,17 +204,27 @@ def main(ticker: str, top_n: int = 4) -> dict:
     industry = basic.get("industry") or ""
 
     # Find peers from hardcoded industry map (direct + fuzzy)
+    # Guard: industry must be a non-empty string for matching
+    if not industry or not isinstance(industry, str) or len(industry.strip()) < 2:
+        return {
+            "ticker": ti.full,
+            "data": {"similar_stocks": [], "industry": industry or "未知", "_note": "行业未识别，无法匹配同行"},
+            "source": "INDUSTRY_PEERS (no industry)",
+            "fallback": True,
+        }
+
     peers = INDUSTRY_PEERS.get(industry, [])
     if not peers:
         for key, val in INDUSTRY_PEERS.items():
-            if key in industry or industry in key or (len(industry) >= 2 and industry[:2] in key):
+            # Require at least 2-char overlap and meaningful match
+            if len(industry) >= 2 and (key in industry or industry in key or industry[:2] in key):
                 peers = val
                 break
 
     if not peers:
         return {
             "ticker": ti.full,
-            "data": {"similar_stocks": [], "industry": industry, "_note": "industry 未在同行映射表里"},
+            "data": {"similar_stocks": [], "industry": industry, "_note": f"行业 '{industry}' 未在同行映射表里"},
             "source": "INDUSTRY_PEERS (missing)",
             "fallback": True,
         }
