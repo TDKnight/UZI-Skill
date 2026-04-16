@@ -1,0 +1,42 @@
+name: Auto Sync UZI-Skill
+
+# 触发器：每天执行 + 手动触发
+on:
+  schedule:
+    # 每天北京时间早上 8 点执行 (UTC 0点)
+    # 如果想改为每周一次，取消下一行注释并注释上一行：
+    # - cron: '0 0 * * 1' 
+    - cron: '0 0 * * *' 
+  workflow_dispatch: # 允许手动点击运行
+
+jobs:
+  sync-upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🛎️ Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: 📦 Checkout
+        uses: actions/checkout@v4
+        with:
+          # 必须获取所有历史记录，否则 merge 会失败
+          fetch-depth: 0 
+
+      - name: 🔗 Add Upstream
+        run: |
+          # 该项目的上游地址
+          git remote add upstream https://github.com/wbh604/UZI-Skill.git
+          git fetch upstream
+
+      - name: 🔄 Merge & Push
+        run: |
+          # 该项目主分支为 main
+          git checkout main
+          # 尝试合并上游 main 分支
+          git merge upstream/main
+          
+          # 推送到你的 Fork
+          # 如果你的 Fork 分支名不是 main，请修改此处
+          git push origin main
